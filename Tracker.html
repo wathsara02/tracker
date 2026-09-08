@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Software Tracker</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e37;
+    --text: #e6e8eb;
+    --muted: #9aa0ab;
+    --accent: #6ea8fe;
+    --accent-dim: #2f4a72;
+    --danger: #e57373;
+    --ok: #7fd99a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; align-items: flex-end; }
+  .row.grow > * { flex: 1; min-width: 140px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select {
+    width: 100%;
+    background: #10131a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent);
+    color: #06121f;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.small { padding: 4px 8px; font-size: 12px; }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td a { color: var(--accent); text-decoration: none; word-break: break-all; }
+  td a:hover { text-decoration: underline; }
+  .cat-tag { display: inline-block; background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+  .empty { color: var(--muted); text-align: center; padding: 30px; font-size: 13px; }
+  .top-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .top-actions .count { color: var(--muted); font-size: 13px; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 16px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--danger); }
+  .sync-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); }
+  .sync-badge.on { color: var(--ok); border-color: var(--ok); }
+</style>
+</head>
+<body>
+
+<h1>Software Tracker</h1>
+<p class="sub">Paste a link, it fills in a name guess — edit anything, then add it to your list. Saved locally, and synced to your Google Sheet if connected.</p>
+
+<div class="panel">
+  <div class="row grow">
+    <div>
+      <label for="webAppUrl">Google Sheet Web App URL <span id="syncBadge" class="sync-badge">not connected</span></label>
+      <input id="webAppUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    </div>
+  </div>
+  <div class="row">
+    <button class="secondary small" id="saveUrlBtn">Save connection</button>
+    <button class="secondary small" id="pullBtn">Pull from sheet</button>
+    <button class="secondary small" id="pushBtn">Push all to sheet</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="row grow">
+    <div>
+      <label for="url">Website / download link</label>
+      <input id="url" type="text" placeholder="https://code.visualstudio.com" autocomplete="off">
+    </div>
+  </div>
+  <div class="row grow">
+    <div>
+      <label for="name">Software name</label>
+      <input id="name" type="text" placeholder="e.g. VS Code" autocomplete="off">
+    </div>
+    <div>
+      <label for="category">Category</label>
+      <select id="category">
+        <option>Dev Tools</option>
+        <option>Utility</option>
+        <option>Media</option>
+        <option>Gaming</option>
+        <option>Drivers</option>
+        <option>Productivity</option>
+        <option>Security</option>
+        <option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="row grow">
+    <div>
+      <label for="notes">Notes (optional)</label>
+      <input id="notes" type="text" placeholder="e.g. license key in Bitwarden, reinstall first">
+    </div>
+  </div>
+  <div class="row">
+    <button id="addBtn">+ Add to list</button>
+    <button class="secondary" id="clearForm">Clear form</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="panel">
+  <div class="top-actions">
+    <span class="count" id="count">0 items</span>
+    <div class="row" style="margin:0;">
+      <button class="secondary small" id="exportBtn">Export as text</button>
+      <button class="secondary small" id="exportCsvBtn">Export as CSV</button>
+    </div>
+  </div>
+  <div id="tableWrap"></div>
+</div>
+
+<script>
+const STORAGE_KEY = "software-list";
+const URL_KEY = "sheet-webapp-url";
+let items = [];
+let webAppUrl = "";
+
+function guessNameFromUrl(url) {
+  try {
+    let u = new URL(url.trim());
+    let host = u.hostname.replace(/^www\./, "");
+    let parts = host.split(".");
+    let base = parts.length > 2 ? parts[parts.length - 2] : parts[0];
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  } catch (e) {
+    return "";
+  }
+}
+
+function setStatus(msg, kind) {
+  const el = document.getElementById("status");
+  el.textContent = msg || "";
+  el.className = "status" + (kind ? " " + kind : "");
+  if (msg) setTimeout(() => { if (el.textContent === msg) { el.textContent = ""; el.className = "status"; } }, 3000);
+}
+
+function updateSyncBadge() {
+  const badge = document.getElementById("syncBadge");
+  if (webAppUrl) {
+    badge.textContent = "connected";
+    badge.classList.add("on");
+  } else {
+    badge.textContent = "not connected";
+    badge.classList.remove("on");
+  }
+}
+
+async function loadAll() {
+  try {
+    webAppUrl = localStorage.getItem(URL_KEY) || "";
+  } catch (e) { webAppUrl = ""; }
+  document.getElementById("webAppUrl").value = webAppUrl;
+  updateSyncBadge();
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    items = raw ? JSON.parse(raw) : [];
+  } catch (e) { items = []; }
+  render();
+}
+
+async function saveItemsLocal() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    setStatus("Couldn't save locally.", "err");
+  }
+}
+
+function render() {
+  const wrap = document.getElementById("tableWrap");
+  document.getElementById("count").textContent = items.length + (items.length === 1 ? " item" : " items");
+
+  if (items.length === 0) {
+    wrap.innerHTML = '<div class="empty">Nothing added yet. Paste a link above to get started.</div>';
+    return;
+  }
+
+  let rows = items.map((it, idx) => `
+    <tr>
+      <td>${escapeHtml(it.name)}</td>
+      <td><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener">${escapeHtml(shortUrl(it.url))}</a></td>
+      <td><span class="cat-tag">${escapeHtml(it.category)}</span></td>
+      <td>${escapeHtml(it.notes || "")}</td>
+      <td><button class="secondary small" onclick="deleteItem(${idx})">Delete</button></td>
+    </tr>
+  `).join("");
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Name</th><th>Link</th><th>Category</th><th>Notes</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function shortUrl(url) { return url.length > 45 ? url.slice(0, 45) + "…" : url; }
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+async function pushReplaceToSheet() {
+  if (!webAppUrl) return;
+  try {
+    await fetch(webAppUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "replace", items: items })
+    });
+  } catch (e) {
+    setStatus("Saved locally, but sheet sync failed.", "err");
+  }
+}
+
+window.deleteItem = async function(idx) {
+  items.splice(idx, 1);
+  await saveItemsLocal();
+  render();
+  await pushReplaceToSheet();
+};
+
+document.getElementById("url").addEventListener("input", (e) => {
+  const nameField = document.getElementById("name");
+  if (!nameField.dataset.userEdited) nameField.value = guessNameFromUrl(e.target.value);
+});
+document.getElementById("name").addEventListener("input", (e) => { e.target.dataset.userEdited = "true"; });
+
+document.getElementById("addBtn").addEventListener("click", async () => {
+  const url = document.getElementById("url").value.trim();
+  const name = document.getElementById("name").value.trim();
+  const category = document.getElementById("category").value;
+  const notes = document.getElementById("notes").value.trim();
+
+  if (!url) { setStatus("Add a link first.", "err"); return; }
+  if (!name) { setStatus("Give it a name.", "err"); return; }
+
+  const item = { url, name, category, notes };
+  items.push(item);
+  await saveItemsLocal();
+  render();
+  clearForm();
+
+  if (webAppUrl) {
+    try {
+      await fetch(webAppUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "append", item: item })
+      });
+      setStatus("Added, and synced to sheet.", "ok");
+    } catch (e) {
+      setStatus("Added locally, but sheet sync failed.", "err");
+    }
+  } else {
+    setStatus("Added.", "ok");
+  }
+});
+
+function clearForm() {
+  document.getElementById("url").value = "";
+  document.getElementById("name").value = "";
+  document.getElementById("notes").value = "";
+  document.getElementById("name").dataset.userEdited = "";
+}
+document.getElementById("clearForm").addEventListener("click", clearForm);
+
+document.getElementById("saveUrlBtn").addEventListener("click", async () => {
+  const val = document.getElementById("webAppUrl").value.trim();
+  webAppUrl = val;
+  try {
+    localStorage.setItem(URL_KEY, webAppUrl);
+    updateSyncBadge();
+    setStatus(webAppUrl ? "Connection saved." : "Connection cleared.", "ok");
+  } catch (e) {
+    setStatus("Couldn't save the connection.", "err");
+  }
+});
+
+document.getElementById("pullBtn").addEventListener("click", async () => {
+  if (!webAppUrl) { setStatus("Save a Web App URL first.", "err"); return; }
+  setStatus("Pulling from sheet…");
+  try {
+    const res = await fetch(webAppUrl);
+    const data = await res.json();
+    items = Array.isArray(data) ? data : [];
+    await saveItemsLocal();
+    render();
+    setStatus("Pulled " + items.length + " item(s) from sheet.", "ok");
+  } catch (e) {
+    setStatus("Couldn't reach the sheet. Check the URL and access settings.", "err");
+  }
+});
+
+document.getElementById("pushBtn").addEventListener("click", async () => {
+  if (!webAppUrl) { setStatus("Save a Web App URL first.", "err"); return; }
+  setStatus("Pushing to sheet…");
+  try {
+    await fetch(webAppUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "replace", items: items })
+    });
+    setStatus("Pushed " + items.length + " item(s) to sheet.", "ok");
+  } catch (e) {
+    setStatus("Push failed. Check the URL and access settings.", "err");
+  }
+});
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  if (items.length === 0) { setStatus("Nothing to export yet.", "err"); return; }
+  let text = items.map(it => `${it.name} | ${it.url} | ${it.category}${it.notes ? " | " + it.notes : ""}`).join("\n");
+  downloadFile(text, "software-list.txt", "text/plain");
+});
+
+document.getElementById("exportCsvBtn").addEventListener("click", () => {
+  if (items.length === 0) { setStatus("Nothing to export yet.", "err"); return; }
+  let csv = "Name,URL,Category,Notes\n" + items.map(it =>
+    [it.name, it.url, it.category, it.notes || ""].map(v => `"${(v || "").replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
+  downloadFile(csv, "software-list.csv", "text/csv");
+});
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
+
+document.getElementById("url").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("addBtn").click(); });
+document.getElementById("name").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("addBtn").click(); });
+
+loadAll();
+</script>
+</body>
+</html>
